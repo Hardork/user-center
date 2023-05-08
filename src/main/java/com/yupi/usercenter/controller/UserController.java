@@ -1,6 +1,7 @@
 package com.yupi.usercenter.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yupi.usercenter.common.BaseResponse;
 import com.yupi.usercenter.common.ErrorCode;
 import com.yupi.usercenter.common.ResultUtils;
@@ -9,14 +10,18 @@ import com.yupi.usercenter.exception.BusinessException;
 import com.yupi.usercenter.model.domain.User;
 import com.yupi.usercenter.model.domain.request.UserLoginRequest;
 import com.yupi.usercenter.model.domain.request.UserRegisterRequest;
+import com.yupi.usercenter.model.domain.vo.UserVO;
 import com.yupi.usercenter.service.UserService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
-
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -25,12 +30,15 @@ import java.util.stream.Collectors;
  * @Description: 控制层接口
  **/
 @RestController
-@CrossOrigin
 @RequestMapping("/user")
+@CrossOrigin(origins = {"http://127.0.0.1:5173","http://127.0.0.1:8000"},methods = {RequestMethod.GET, RequestMethod.POST})
+@Slf4j
 public class UserController {
 
     @Resource
     private UserService userService;
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
     /**
      * 注册用户接口
      * @param userRegisterRequest
@@ -91,7 +99,6 @@ public class UserController {
         return ResultUtils.success(flag);
     }
 
-
     /**
      * 获取用户列表
      * @param request
@@ -119,7 +126,7 @@ public class UserController {
     @GetMapping("/search")
     public BaseResponse<List<User>> searchUser(String username, HttpServletRequest request){
         //鉴权，仅管理员可查询
-        if(!idAdmin(request)){
+        if(!userService.isAdmin(request)){
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
         QueryWrapper<User> qw = new QueryWrapper<>();
@@ -136,6 +143,61 @@ public class UserController {
     }
 
     /**
+     * 根据标签搜索用户
+     * @param tagNameList 用户搜索标签列表
+     * @return 符合标签列表的用户
+     */
+    @GetMapping("/search/tags")
+    public BaseResponse<List<User>> searchUsersByTags(@RequestParam(required = false) List<String> tagNameList){
+        if(CollectionUtils.isEmpty(tagNameList)){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        List<User> userList = userService.searchUserByTags(tagNameList);
+        return ResultUtils.success(userList);
+    }
+
+    @GetMapping("/recommend")
+     public BaseResponse<Page<User>> recommendUsers(HttpServletRequest request, long pageNum, long pageSize){
+        if(request == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        //获取当前用户的信息
+        Long id = userService.getLoginUser(request).getId();
+        //查缓存
+        String redisKey = String.format("yupao:user:recommed:%s",id);
+        ValueOperations ops = redisTemplate.opsForValue();
+        Page<User> userPage = (Page<User>)ops.get(redisKey);
+        if(userPage != null){//缓存中有数据
+            return ResultUtils.success(userPage);
+        }
+        //缓存中没数据，从数据库中获取，并写入到缓存中
+        QueryWrapper<User> qw = new QueryWrapper<>();
+        Page<User> userList = userService.page(new Page<>(pageNum,pageSize),qw);
+        try {
+            ops.set(redisKey,userList,30000, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.info("写缓存错误");
+        }
+        return ResultUtils.success(userList);
+    }
+
+    @PostMapping("/update")
+    public BaseResponse<Integer> updateUserInfo(@RequestBody User user, HttpServletRequest request){
+        //1.校验参数是否为空
+        if(user == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        //判断要更新的id是否为空
+
+        //2.校验权限
+        User loginUser = userService.getLoginUser(request);
+
+        //3，触发更新
+        Integer result = userService.updateUserInfo(user, loginUser);
+        return ResultUtils.success(result);
+    }
+
+    /**
      * 删除用户接口
      * @param id
      * @param request
@@ -144,7 +206,7 @@ public class UserController {
     @PostMapping("/delete")
     public BaseResponse<Boolean> deleteUser(@RequestBody long id, HttpServletRequest request){
         //鉴权，仅管理员可删除
-        if(!idAdmin(request)){
+        if(!userService.isAdmin(request)){
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
         if(id <= 0){
@@ -154,16 +216,14 @@ public class UserController {
         return ResultUtils.success(userService.removeById(id));
     }
 
+    @GetMapping("/match")
+    public BaseResponse<List<User>> matchUsers(long num, HttpServletRequest request){
+        if(request == null || num < 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        List<User> userList = userService.matchUsers(num, loginUser);
+        return ResultUtils.success(userList);
 
-    /**
-     * 鉴权
-     * @param request
-     * @return 是否为管理员
-     */
-    public boolean idAdmin(HttpServletRequest request){
-        //鉴权，仅管理员可操作
-        User user = (User) request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
-        //不是管理员
-        return user != null && user.getUserRole() == UserConstant.ADMIN_ROLE;//空数组
     }
-}
+    }

@@ -35,6 +35,11 @@ public class User implements Serializable {
     private String avatarUrl;
 
     /**
+     * 个人简介
+     */
+    private String profile;
+
+    /**
      * 性别
      */
     private Integer gender;
@@ -84,6 +89,11 @@ public class User implements Serializable {
      * 星球编号
      */
     private String planetCode;
+
+    /**
+     * 用户所属标签
+     */
+    private String tags;
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;

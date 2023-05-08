@@ -1,9 +1,11 @@
 package com.yupi.usercenter.service;
 
+import com.yupi.usercenter.constant.UserConstant;
 import com.yupi.usercenter.model.domain.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
 * @author HWQ
@@ -42,4 +44,49 @@ public interface UserService extends IService<User> {
      * @return
      */
     Integer userLogout(HttpServletRequest request);
+
+    /**
+     * 根据用户标签搜索用户
+     * @param tagList 用户要搜索的标签列表
+     * @return
+     */
+    List<User> searchUserByTags(List<String> tagList);
+
+    /**
+     * 更新用户信息
+     * @param user
+     * @param loginUser
+     * @return 是否跟新成功 成功1 失败0
+     */
+    int  updateUserInfo(User user, User loginUser);
+
+    /**
+     * 获取当前登录用户的信息
+     * @param request
+     * @return
+     */
+    User getLoginUser(HttpServletRequest request);
+
+    /**
+     * 根据请求鉴权
+     * @param request
+     * @return
+     */
+    boolean isAdmin(HttpServletRequest request);
+
+    /**
+     * 根据用户实体鉴权
+     * @param user
+     * @return 是否为管理员
+     */
+    boolean isAdmin(User user);
+
+
+    /**
+     * 根据用户标签给用户推荐其它用户
+     * @param num 要推荐的用户个数
+     * @param loginUser
+     * @return
+     */
+    List<User> matchUsers(long num, User loginUser);
 }
