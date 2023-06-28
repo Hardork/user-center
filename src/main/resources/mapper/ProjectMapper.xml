@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yupi.usercenter.mapper.ProjectMapper">
+
+    <resultMap id="BaseResultMap" type="com.yupi.usercenter.model.domain.Project">
+            <id property="id" column="id" jdbcType="BIGINT"/>
+            <result property="userId" column="userId" jdbcType="BIGINT"/>
+            <result property="cover" column="cover" jdbcType="VARCHAR"/>
+            <result property="title" column="title" jdbcType="VARCHAR"/>
+            <result property="description" column="description" jdbcType="VARCHAR"/>
+            <result property="percent" column="percent" jdbcType="INTEGER"/>
+            <result property="href" column="href" jdbcType="VARCHAR"/>
+            <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+            <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,cover,
+        title,description,percent,
+        href,createTime,updateTime
+    </sql>
+</mapper>

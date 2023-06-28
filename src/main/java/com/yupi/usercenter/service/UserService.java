@@ -1,8 +1,11 @@
 package com.yupi.usercenter.service;
 
-import com.yupi.usercenter.constant.UserConstant;
 import com.yupi.usercenter.model.domain.User;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.yupi.usercenter.model.domain.request.UpdateMyRequest;
+import com.yupi.usercenter.model.domain.request.UpdateUserRequest;
+import com.yupi.usercenter.model.domain.request.UserListRequest;
+import com.yupi.usercenter.model.domain.vo.UserListVo;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -58,7 +61,7 @@ public interface UserService extends IService<User> {
      * @param loginUser
      * @return 是否跟新成功 成功1 失败0
      */
-    int  updateUserInfo(User user, User loginUser);
+    int  updateUserInfo(UpdateUserRequest user, User loginUser);
 
     /**
      * 获取当前登录用户的信息
@@ -89,4 +92,19 @@ public interface UserService extends IService<User> {
      * @return
      */
     List<User> matchUsers(long num, User loginUser);
+
+    /**
+     * 获取用户列表
+     * @param userListParam
+     * @return
+     */
+    UserListVo getUserList(UserListRequest userListParam);
+
+    /**
+     * 更新我的信息
+     * @param updateMyRequest
+     * @param loginUser
+     * @return
+     */
+    Integer updateMyInfo(UpdateMyRequest updateMyRequest, User loginUser);
 }

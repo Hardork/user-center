@@ -1,6 +1,8 @@
 package com.yupi.usercenter.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -9,12 +11,17 @@ import com.yupi.usercenter.constant.UserConstant;
 import com.yupi.usercenter.exception.BusinessException;
 import com.yupi.usercenter.mapper.UserMapper;
 import com.yupi.usercenter.model.domain.User;
-import com.yupi.usercenter.model.domain.vo.UserVO;
+import com.yupi.usercenter.model.domain.request.UpdateMyRequest;
+import com.yupi.usercenter.model.domain.request.UpdateUserRequest;
+import com.yupi.usercenter.model.domain.request.UserListRequest;
+import com.yupi.usercenter.model.domain.vo.UserListVo;
 import com.yupi.usercenter.service.UserService;
 import com.yupi.usercenter.utils.AlgorithmUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.util.Pair;
+import org.apache.poi.ss.formula.functions.T;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
@@ -139,6 +146,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         User safetyUser = getSafetyUser(user);
         //4.记录用户的登录态,用于下一次用户登录，判断是否已经登录过
         request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, safetyUser);
+        System.out.println(request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE));
         //返回信息
         return safetyUser;
     }
@@ -181,7 +189,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 根据用户标签搜索用户
-     * @param tagList 用户要搜索的标签列表
+     * @param tagList 用户要搜索的标签列表 例如["java","男"]
      * @return
      */
     @Override
@@ -233,7 +241,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @return
      */
     @Override
-    public int updateUserInfo(User user, User loginUser) {
+    public int updateUserInfo(UpdateUserRequest user, User loginUser) {
         //判断是否传了id
         long userId = user.getId();
         if(userId <= 0){
@@ -249,8 +257,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if(oldUser == null){
             throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR);
         }
-        return userMapper.updateById(user);
+        oldUser.setUsername(user.getUsername());
+        oldUser.setUserRole(user.getUserRole());
+        oldUser.setUserAccount(user.getUserAccount());
+        oldUser.setProfile(user.getProfile());
+        oldUser.setGender(user.getGender());
+        oldUser.setAvatarUrl(user.getAvatarUrl());
+        oldUser.setEmail(user.getEmail());
+        oldUser.setPhone(user.getPhone());
+
+        return userMapper.updateById(oldUser);
     }
+
+
 
     @Override
     public User getLoginUser(HttpServletRequest request) {
@@ -340,6 +359,89 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             finalResult.add(userIdUserListMap.get(userId).get(0));
         }
         return finalResult;
+    }
+
+    @Override
+    public UserListVo getUserList(UserListRequest userListParam) {
+        if(userListParam == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        //拿出请求对象中的值进行校验
+        QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
+        String username = userListParam.getUsername();
+        Integer userRole = userListParam.getUserRole();
+        Date createTime = userListParam.getCreateTime();
+        String userAccount = userListParam.getUserAccount();
+        if(!StringUtils.isBlank(username)){
+            userQueryWrapper.eq("username",username);
+        }
+        if(userRole != null){
+            userQueryWrapper.eq("userRole",userRole);
+        }
+        if(userAccount != null){
+            userQueryWrapper.eq("userAccount",userAccount);
+        }
+        if(createTime != null){
+            userQueryWrapper.eq("date_format(createTime, '%Y-%m-%d')", String.format(createTime.toString(), "yyyy-MM-dd"));
+        }
+        //去数据库获取分页数据
+        long pageNo = userListParam.getPageNo();
+        long pageSize = userListParam.getPageSize();
+        //缓存中没数据，从数据库中获取，并写入到缓存中
+        Page<User> userPage = this.page(new Page<>(pageNo,pageSize),userQueryWrapper);
+        List<User> userList = userPage.getRecords();
+        //返回安全的用户数据
+        List<User> safetyUserList = userList.stream().map(this::getSafetyUser).collect(Collectors.toList());
+        UserListVo userListVo = new UserListVo();
+        userListVo.setTotalCount(userPage.getTotal());
+        userListVo.setPageNo(userPage.getCurrent());
+        userListVo.setPageSize(userPage.getSize());
+        userListVo.setData(safetyUserList);
+        userListVo.setTotalPage(userPage.getPages());
+        return userListVo;
+    }
+
+    @Override
+    public Integer updateMyInfo(UpdateMyRequest updateMyRequest, User loginUser) {
+        //校验数据
+        String username = updateMyRequest.getUsername();
+        String email = updateMyRequest.getEmail();
+        String profile = updateMyRequest.getProfile();
+        String phone = updateMyRequest.getPhone();
+        Long userId = loginUser.getId();
+        UpdateWrapper<User> userUpdateWrapper = new UpdateWrapper<>();
+        userUpdateWrapper.eq("id", userId);
+        boolean needUpdate = false;
+        if(!StringUtils.isBlank(username)){
+            userUpdateWrapper.set("username",username);
+            needUpdate = true;
+        }
+        if(!StringUtils.isBlank(profile)){
+            userUpdateWrapper.set("profile",profile);
+            needUpdate = true;
+        }
+        if(!StringUtils.isBlank(email)){
+            userUpdateWrapper.set("email",email);
+            needUpdate = true;
+        }
+        if(!StringUtils.isBlank(phone)){
+            userUpdateWrapper.set("phone",phone);
+            needUpdate = true;
+        }
+        if(!needUpdate){
+            //不需要更新
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        //符合更新条件
+        User oldUser = userMapper.selectById(userId);
+        if(oldUser == null){
+            throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR);
+        }
+        boolean update = this.update(userUpdateWrapper);
+        if(!update){
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+        }
+        return 1;
     }
 
 

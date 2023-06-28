@@ -3,14 +3,14 @@ package com.yupi.usercenter.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yupi.usercenter.common.BaseResponse;
+import com.yupi.usercenter.common.DeleteRequest;
 import com.yupi.usercenter.common.ErrorCode;
 import com.yupi.usercenter.common.ResultUtils;
 import com.yupi.usercenter.constant.UserConstant;
 import com.yupi.usercenter.exception.BusinessException;
 import com.yupi.usercenter.model.domain.User;
-import com.yupi.usercenter.model.domain.request.UserLoginRequest;
-import com.yupi.usercenter.model.domain.request.UserRegisterRequest;
-import com.yupi.usercenter.model.domain.vo.UserVO;
+import com.yupi.usercenter.model.domain.request.*;
+import com.yupi.usercenter.model.domain.vo.UserListVo;
 import com.yupi.usercenter.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -81,6 +81,7 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = userService.doLogin(userAccount, userPassword, request);
+        System.out.println(request.getSession().getId());
         //返回请求结果
         return ResultUtils.success(user);
     }
@@ -107,6 +108,7 @@ public class UserController {
     @GetMapping("/current")
     public BaseResponse<User> getCurrentUser(HttpServletRequest request){
         Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        System.out.println(request.getSession().getId());
         User currentUser = (User) userObj;
         if(currentUser == null){
             throw new BusinessException(ErrorCode.NO_LOGIN);
@@ -115,6 +117,24 @@ public class UserController {
         //todo 校验用户是否合法
         User user = userService.getById(userId);
         return ResultUtils.success(userService.getSafetyUser(user));
+    }
+
+    /**
+     * 获取用户列表（myself）
+     * @param request
+     * @return
+     */
+    @GetMapping("/list")
+    public BaseResponse<UserListVo> getUserList(UserListRequest userListParam, HttpServletRequest request){
+//        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+//        User currentUser = (User) userObj;
+//        if(currentUser == null){
+//            throw new BusinessException(ErrorCode.NO_LOGIN);
+//        }
+//        long userId = currentUser.getId();
+        //todo 校验用户是否合法
+        UserListVo userListVo = userService.getUserList(userListParam);
+        return ResultUtils.success(userListVo);
     }
 
     /**
@@ -181,39 +201,60 @@ public class UserController {
         return ResultUtils.success(userList);
     }
 
-    @PostMapping("/update")
-    public BaseResponse<Integer> updateUserInfo(@RequestBody User user, HttpServletRequest request){
+    /**
+     * 更新用户的信息
+     * @param updateUserRequest
+     * @param request
+     * @return
+     */
+    @GetMapping("/update")
+    public BaseResponse<Integer> updateUserInfo(UpdateUserRequest updateUserRequest, HttpServletRequest request){
         //1.校验参数是否为空
-        if(user == null){
+        if(updateUserRequest == null){
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         //判断要更新的id是否为空
-
+        if(updateUserRequest.getId() == null || updateUserRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         //2.校验权限
         User loginUser = userService.getLoginUser(request);
 
         //3，触发更新
-        Integer result = userService.updateUserInfo(user, loginUser);
+        Integer result = userService.updateUserInfo(updateUserRequest, loginUser);
         return ResultUtils.success(result);
     }
 
+    @PostMapping("/update/my")
+    public BaseResponse<Integer> updateMyInfo(@RequestBody UpdateMyRequest updateMyRequest, HttpServletRequest request){
+        //1.校验参数是否为空
+        if(updateMyRequest == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        //2.校验权限
+        User loginUser = userService.getLoginUser(request);
+
+        //3，触发更新
+        Integer result = userService.updateMyInfo(updateMyRequest, loginUser);
+        return ResultUtils.success(result);
+    }
     /**
      * 删除用户接口
-     * @param id
+     * @param deleteRequest
      * @param request
      * @return
      */
     @PostMapping("/delete")
-    public BaseResponse<Boolean> deleteUser(@RequestBody long id, HttpServletRequest request){
+    public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request){
         //鉴权，仅管理员可删除
         if(!userService.isAdmin(request)){
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
-        if(id <= 0){
+        if(deleteRequest.getId() <= 0){
             throw new BusinessException(ErrorCode.PARAMS_NULL_ERROR);
         }
         //这里的删除是逻辑删除
-        return ResultUtils.success(userService.removeById(id));
+        return ResultUtils.success(userService.removeById(deleteRequest.getId()));
     }
 
     @GetMapping("/match")

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 /**
  * @Author:HWQ
  * @DateTime:2023/4/22 23:16
- * @Description:
+ * @Description: 全局对特定异常捕获
  **/
 @RestControllerAdvice
 @Slf4j
